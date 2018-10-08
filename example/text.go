@@ -29,7 +29,7 @@ import (
 	"go-genetic/genetic"
 )
 
-const alphabet = " abcdefghijklmnopqrtuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,.;:!?"
+const alphabet = "abcdefghijklmnopqrtuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,.;:!? "
 
 type Text struct {
 	genetic.Chromosome
@@ -63,7 +63,7 @@ func distance(s1, s2 string) (int, error) {
 }
 
 func main() {
-	const text = "Hello, World! cit. MP"
+	const text = "Hello, World!"
 
 	eval := func(c genetic.Chromosome) float64 {
 		if fitness, err := distance(Text{c, ""}.String(), text); err == nil {
@@ -87,7 +87,7 @@ func main() {
 		Crossover:        genetic.SinglePointCrossover{},
 		Mutation:         genetic.Uniform{.1},
 		Elitism:          .1,
-		Iterations:       100000,
+		Iterations:       1000,
 		Evaluator:        eval,
 		Observer:         observer,
 	}
