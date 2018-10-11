@@ -27,7 +27,6 @@ package genetic
 import (
 	"fmt"
 	"math/rand"
-	"sort"
 )
 
 type Selection interface {
@@ -62,7 +61,7 @@ func (e ElitismSelection) Select(population []Phenotype, n int) ([]Chromosome, e
 		return nil, fmt.Errorf("invalid selection size: %v > %v (population size)", n, len(population))
 	}
 
-	sort.Sort(decreasing(population))
+	// sort.Sort(decreasing(population))
 
 	size := int(bound(float64(n), e.Size*float64(len(population)), float64(len(population))))
 	selection := make([]Chromosome, size)

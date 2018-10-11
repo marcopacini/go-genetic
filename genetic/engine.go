@@ -11,6 +11,7 @@ type Configuration struct {
 	GeneLength       int
 	ChromosomeLength int
 	PopulationSize   int
+	MaxAge           int
 	Selection
 	Crossover
 	Mutation   Mutator
@@ -20,9 +21,15 @@ type Configuration struct {
 	Observer   func(int, *Engine)
 }
 
+type AtomicBool struct {
+	value bool
+	mutex sync.Mutex
+}
+
 type Engine struct {
 	Configuration
 	Population []Phenotype
+	mutex      sync.Mutex
 	running    bool
 }
 
@@ -33,13 +40,23 @@ func (e *Engine) Start() (Phenotype, time.Duration) {
 
 	for i := range e.Population {
 		chromosome := NewChromosome(e.ChromosomeLength, e.GeneLength)
-		e.Population[i] = Phenotype{chromosome, e.Evaluator(chromosome)}
+		e.Population[i] = Phenotype{chromosome, e.Evaluator(chromosome), 0}
 	}
 
 	e.running = true
+
 	start := time.Now()
 
-	for i := 0; e.running && i < e.Iterations; i++ {
+	for i := 0; i < e.Iterations; i++ {
+		e.mutex.Lock()
+
+		if !e.running {
+			e.mutex.Unlock()
+			break
+		}
+
+		e.mutex.Unlock()
+
 		sort.Sort(decreasing(e.Population))
 
 		// Elitism
@@ -48,11 +65,25 @@ func (e *Engine) Start() (Phenotype, time.Duration) {
 		var wg sync.WaitGroup
 		mutex := &sync.Mutex{}
 
-		offspring := e.Population[:survivors]
+		offspring := make([]Phenotype, 0, e.PopulationSize)
 
-		for survivors < e.PopulationSize {
+		for i := range e.Population {
+			if len(offspring) >= survivors {
+				break
+			}
+
+			e.Population[i].Age++
+
+			if !(e.Population[i].Age > e.MaxAge) {
+				offspring = append(offspring, e.Population[i])
+			}
+		}
+
+		size := len(offspring)
+
+		for size < e.PopulationSize {
 			wg.Add(1)
-			survivors += e.Crossover.Children()
+			size += e.Crossover.Children()
 
 			go func() {
 				defer wg.Done()
@@ -70,7 +101,7 @@ func (e *Engine) Start() (Phenotype, time.Duration) {
 				for i := range children {
 					children[i].Mutate(e.Mutation)
 
-					phenotype := Phenotype{children[i], e.Evaluator(children[i])}
+					phenotype := Phenotype{children[i], e.Evaluator(children[i]), 0}
 
 					mutex.Lock()
 					offspring = append(offspring, phenotype)
@@ -91,6 +122,9 @@ func (e *Engine) Start() (Phenotype, time.Duration) {
 }
 
 func (e *Engine) Stop() {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+
 	e.running = false
 }
 

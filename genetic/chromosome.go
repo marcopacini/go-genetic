@@ -58,10 +58,11 @@ func (c *Chromosome) Mutate(mutator Mutator) {
 	}
 }
 
-// Phenotype encapsulates a chromosome with its relative fitness score
+// Phenotype encapsulates a chromosome with its relative fitness score and age
 type Phenotype struct {
 	Chromosome
 	Fitness float64
+	Age     int
 }
 
 // sort.Interface implementation for Phenotype slice
