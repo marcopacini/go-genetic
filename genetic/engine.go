@@ -17,6 +17,7 @@ type Configuration struct {
 	Mutation   Mutator
 	Elitism    float64
 	Iterations int
+	Init       func(*Engine)
 	Evaluator  func(Chromosome) float64
 	Observer   func(int, *Engine)
 }
@@ -42,6 +43,8 @@ func (e *Engine) Start() (Phenotype, time.Duration) {
 		chromosome := NewChromosome(e.ChromosomeLength, e.GeneLength)
 		e.Population[i] = Phenotype{chromosome, e.Evaluator(chromosome), 0}
 	}
+
+	e.Configuration.Init(e)
 
 	e.running = true
 
