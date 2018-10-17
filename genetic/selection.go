@@ -79,3 +79,42 @@ func (e ElitismSelection) Select(population []Phenotype, n int) ([]Chromosome, e
 
 	return selection[:n], nil
 }
+
+type TournamentSelection struct {
+	Size int
+}
+
+func (t TournamentSelection) Select(population []Phenotype, n int) ([]Chromosome, error) {
+	if n > len(population) {
+		return nil, fmt.Errorf("invalid selection size: %v > %v (population size)", n, len(population))
+	}
+
+	// shuffle
+	shuffle := func() {
+		for i := range population {
+			j := rand.Intn(len(population))
+			population[i], population[j] = population[j], population[i]
+		}
+	}
+
+	tournament := func() Chromosome {
+		best := population[0]
+
+		for _, phenotype := range population[:t.Size] {
+			if phenotype.Fitness > best.Fitness {
+				best = phenotype
+			}
+		}
+
+		return best.Chromosome
+	}
+
+	var selection []Chromosome
+
+	for i := 0; i < n; i++ {
+		shuffle()
+		selection = append(selection, tournament())
+	}
+
+	return selection, nil
+}

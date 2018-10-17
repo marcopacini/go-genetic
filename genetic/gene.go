@@ -34,15 +34,15 @@ type Gene struct {
 	Sequence []float64
 }
 
-// NewGene returns a new randonmly
+// NewGene returns a new 'zero' Gene
 func NewGene(n int) Gene {
-	gene := Gene{make([]float64, n)}
+	return Gene{make([]float64, n)}
+}
 
-	for i := range gene.Sequence {
-		gene.Sequence[i] = rand.Float64()
+func (g *Gene) Randomize() {
+	for i := range g.Sequence {
+		g.Sequence[i] = rand.Float64()
 	}
-
-	return gene
 }
 
 // Clone the receiver gene

@@ -34,6 +34,7 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
+	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
@@ -43,10 +44,8 @@ import (
 type Shape int
 
 const (
-	circle   Shape = 7
-	triangle Shape = 10
-	// square Shape = 12
-
+	circle  Shape = 8
+	polygon Shape = 26
 )
 
 type Picture struct {
@@ -79,19 +78,23 @@ func DrawCircle(gc *draw2dimg.GraphicContext, gene genetic.Gene, width int, heig
 		panic(fmt.Sprintf("Input length is not valid: %d != %d", len(gene.Sequence), circle))
 	}
 
+	if gene.Sequence[0] < .5 {
+		return
+	}
+
 	normalizeUint8 := func(value float64) uint8 {
 		return uint8(value * float64(math.MaxUint8))
 	}
 
 	nrgba := color.NRGBA{
-		normalizeUint8(gene.Sequence[0]),
 		normalizeUint8(gene.Sequence[1]),
 		normalizeUint8(gene.Sequence[2]),
 		normalizeUint8(gene.Sequence[3]),
+		normalizeUint8(gene.Sequence[4]),
 	}
 
-	x, y := gene.Sequence[4]*float64(width), gene.Sequence[5]*float64(height)
-	radius := gene.Sequence[6] * math.Min(float64(width), float64(height)) / 4
+	x, y := gene.Sequence[5]*float64(width), gene.Sequence[6]*float64(height)
+	radius := gene.Sequence[7] * math.Min(float64(width), float64(height)) / 4
 
 	draw2dkit.Circle(gc, x, y, radius)
 
@@ -100,8 +103,12 @@ func DrawCircle(gc *draw2dimg.GraphicContext, gene genetic.Gene, width int, heig
 }
 
 func DrawPolygon(gc *draw2dimg.GraphicContext, gene genetic.Gene, width int, height int) {
-	if len(gene.Sequence) < int(triangle) {
-		panic(fmt.Sprintf("Input length is not valid: %d < %d", len(gene.Sequence), triangle))
+	if len(gene.Sequence) < int(polygon) {
+		panic(fmt.Sprintf("Input length is not valid: %d < %d", len(gene.Sequence), polygon))
+	}
+
+	if gene.Sequence[0] < .5 {
+		return
 	}
 
 	normalizeUint8 := func(value float64) uint8 {
@@ -109,17 +116,18 @@ func DrawPolygon(gc *draw2dimg.GraphicContext, gene genetic.Gene, width int, hei
 	}
 
 	nrgba := color.NRGBA{
-		normalizeUint8(gene.Sequence[0]),
 		normalizeUint8(gene.Sequence[1]),
 		normalizeUint8(gene.Sequence[2]),
 		normalizeUint8(gene.Sequence[3]),
+		normalizeUint8(gene.Sequence[4]),
 	}
 
-	x, y := gene.Sequence[4]*float64(width), gene.Sequence[5]*float64(height)
+	length := int(gene.Sequence[5]*10) + 1
+	x, y := gene.Sequence[6]*float64(width), gene.Sequence[7]*float64(height)
 
 	gc.MoveTo(x, y)
 
-	for i := 6; i < len(gene.Sequence); i += 2 {
+	for i := 8; i < length+8; i += 2 {
 		x, y := gene.Sequence[i]*float64(width), gene.Sequence[i+1]*float64(height)
 		gc.LineTo(x, y)
 	}
@@ -222,27 +230,56 @@ func main() {
 	shape := circle
 	width, height := sample.Bounds().Size().X, sample.Bounds().Size().Y
 
+	init := func(e *genetic.Engine) {
+		for i := range e.Population {
+			for j := range e.Population[i].Chromosome.Genes {
+				e.Population[i].Chromosome.Genes[j].Randomize()
+				e.Population[i].Chromosome.Genes[j].Sequence[0] = .3 // hide circle
+			}
+		}
+
+		for i := range e.Population {
+			j := rand.Intn(len(e.Population[i].Chromosome.Genes))
+			e.Population[i].Chromosome.Genes[j].Sequence[0] = .6
+		}
+	}
+
 	eval := func(chromosome genetic.Chromosome) float64 {
-		difference := compareImage(Picture{chromosome}.Draw(width, height, color.White, shape), sample)
-		return 100 - (difference*100)/(float64(width)*float64(height)*256*256*4)
+		difference := compareImage(Picture{chromosome}.Draw(width, height, color.Black, shape), sample)
+		return 100 - (difference*100)/(float64(width)*float64(height)*255*255*4)
 	}
 
 	observer := func(i int, e *genetic.Engine) {
 		if verbose {
-			fmt.Printf("%d\t%f\t%f\n", i, e.Best().Fitness, e.Worst().Fitness)
+			best := e.Best()
+
+			n := 0
+			for _, g := range best.Genes {
+				if g.Sequence[0] > .5 {
+					n++
+				}
+			}
+
+			fmt.Printf("%d\t%f (%d-%d)\t%f\n", i, best.Fitness, best.Age, n, e.Worst().Fitness)
+		}
+
+		if i%100 == 0 {
+			img := Picture{e.Best().Chromosome}.Draw(4*width, 4*height, color.Black, shape)
+			draw2dimg.SaveToPngFile("monna-lisa.png", img)
 		}
 	}
 
 	configuration := genetic.Configuration{
 		GeneLength:       int(shape),
-		ChromosomeLength: 500,
+		ChromosomeLength: 300,
 		PopulationSize:   100,
-		MaxAge:           20,
-		Selection:        genetic.ElitismSelection{.2},
+		MaxAge:           3,
+		Selection:        genetic.TournamentSelection{10},
 		Crossover:        genetic.UniformCrossover{},
 		Mutation:         genetic.Gaussian{.001, .1, 0.},
-		Elitism:          .2,
+		Elitism:          .1,
 		Iterations:       iterations,
+		Init:             init,
 		Evaluator:        eval,
 		Observer:         observer,
 	}
@@ -263,6 +300,6 @@ func main() {
 		fmt.Printf("Completed in %v\n", elapsed)
 	}
 
-	img := Picture{best.Chromosome}.Draw(4*width, 4*height, color.White, shape)
+	img := Picture{best.Chromosome}.Draw(4*width, 4*height, color.Black, shape)
 	draw2dimg.SaveToPngFile("monna-lisa.png", img)
 }
