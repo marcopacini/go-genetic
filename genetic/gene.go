@@ -36,6 +36,10 @@ type Gene struct {
 
 // NewGene returns a new 'zero' Gene
 func NewGene(n int) Gene {
+	if n < 0 {
+		panic(fmt.Sprintf("invalid argument: %d < 0 (must be greater than zero)", n))
+	}
+
 	return Gene{make([]float64, n)}
 }
 
