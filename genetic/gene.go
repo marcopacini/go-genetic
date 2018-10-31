@@ -35,12 +35,12 @@ type Gene struct {
 }
 
 // NewGene returns a new 'zero' Gene
-func NewGene(n int) Gene {
-	if n < 0 {
-		panic(fmt.Sprintf("invalid argument: %d < 0 (must be greater than zero)", n))
+func NewGene(length int) Gene {
+	if length < 0 {
+		panic(fmt.Sprintf("invalid argument: length = %d (must be greater than zero)", length))
 	}
 
-	return Gene{make([]float64, n)}
+	return Gene{make([]float64, length)}
 }
 
 func (g *Gene) Randomize() {

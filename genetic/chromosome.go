@@ -24,6 +24,8 @@
 
 package genetic
 
+import "fmt"
+
 // A chromosome collects more genes
 type Chromosome struct {
 	Genes []Gene
@@ -31,6 +33,10 @@ type Chromosome struct {
 
 // NewChromosome returns a new randomly chromosome
 func NewChromosome(length int, geneLength int) Chromosome {
+	if length < 1 {
+		panic(fmt.Sprintf("invalid argument: length = %d (length must be greater than zero", length))
+	}
+
 	chromosome := Chromosome{make([]Gene, length)}
 
 	for i := range chromosome.Genes {
