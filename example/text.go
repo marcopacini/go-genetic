@@ -1,7 +1,7 @@
 /*
  *  MIT License
  *
- *  Copyright (c) 2018 Marco Pacini
+ *  Copyright (c) 2019 Marco Pacini
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy
  *  of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@ package main
 
 import (
 	"fmt"
-	"go-genetic/genetic"
+	"github.com/marcopacini/go-genetic/genetic"
 )
 
 const alphabet = "abcdefghijklmnopqrtuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,.;:!? "
