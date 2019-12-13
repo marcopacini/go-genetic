@@ -65,6 +65,14 @@ func distance(s1, s2 string) (int, error) {
 func main() {
 	const text = "Hello, World!"
 
+	init := func (e *genetic.Engine) {
+		for i, _ := range e.Population {
+			for j, _ := range e.Population[i].Chromosome.Genes {
+				e.Population[i].Chromosome.Genes[j].Randomize()
+			}
+		}
+	}
+
 	eval := func(c genetic.Chromosome) float64 {
 		if fitness, err := distance(Text{c, ""}.String(), text); err == nil {
 			return float64(fitness)
@@ -82,12 +90,14 @@ func main() {
 	configuration := genetic.Configuration{
 		GeneLength:       1,
 		ChromosomeLength: len(text),
-		PopulationSize:   100,
+		PopulationSize:   150,
+		MaxAge:			  25,
 		Selection:        genetic.ElitismSelection{.1},
 		Crossover:        genetic.SinglePointCrossover{},
-		Mutation:         genetic.Uniform{.1},
-		Elitism:          .1,
+		Mutation:         genetic.Uniform{.01},
+		Elitism:          .15,
 		Iterations:       1000,
+		Init: 			  init,
 		Evaluator:        eval,
 		Observer:         observer,
 	}
