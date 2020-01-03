@@ -14,7 +14,7 @@ function App() {
               <Card.Text>
                 <b>n.b.</b> <i>working in progress</i>
                 <br /><br />
-                <Image src="gioconda-sample.png" rounded />
+                <Image src="http://localhost:3001" rounded />
                 <br /><br />
               </Card.Text>
               <Button variant="primary">
