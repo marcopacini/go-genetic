@@ -8,7 +8,8 @@ class Preview extends React.Component {
         super();
         this.state = {
             started: false,
-            src: "http://localhost:3001/best"
+            src: "http://localhost:3000/placeholder-md.png",
+            counter: 0,
         };
 
         this.handleStart= this.handleStart.bind(this);
@@ -17,7 +18,7 @@ class Preview extends React.Component {
     componentDidMount() {
         this.timerID = setInterval(
             () => this.tick(),
-            1000
+            500
         );
     }
 
@@ -27,8 +28,11 @@ class Preview extends React.Component {
 
     tick() {
         if (this.state.started) {
-            this.setState({
-                src: "http://localhost:3001/best?date=" + new Date()
+            this.setState((prevState) => {
+                return {
+                    src: "http://localhost:3001/next?n=" + this.state.counter,
+                    counter: prevState.counter + 1
+                }
             })
         }
     }
