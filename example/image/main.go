@@ -14,6 +14,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"sync"
 )
 
@@ -124,13 +125,61 @@ func compareImage(img1 image.Image, img2 image.Image) float64 {
 	return result
 }
 
-func main() {
-	file, err := os.Open("resource/sample-md.png")
+type Bus struct {
+	queue []genetic.Phenotype
+}
+
+func newBus() *Bus {
+	return &Bus{
+		queue: make([]genetic.Phenotype, 0),
+	}
+}
+
+func (b *Bus) push(p genetic.Phenotype) {
+	b.queue = append(b.queue, p)
+}
+
+func (b *Bus) isEmpty() bool {
+	return len(b.queue) == 0
+}
+
+func (b *Bus) next() (genetic.Phenotype, error) {
+	if b.isEmpty() {
+		return genetic.Phenotype{}, fmt.Errorf("bus is empty")
+	}
+
+	next := b.queue[0]
+
+	if len(b.queue) != 1 {
+		b.queue = b.queue[1:]
+	}
+	return next, nil
+}
+
+type Sample string
+
+const (
+	Small Sample = "sample-sm.png"
+	Medium =  "sample-md.png"
+	Large =  "sample-lg.png"
+)
+
+func getSample(s Sample) (image.Image, error) {
+	file, err := os.Open(path.Join("resource", string(s)))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	sample, _, err := image.Decode(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return sample, nil
+}
+
+func main() {
+	sample, err := getSample(Small)
 	if err != nil {
 		panic(err)
 	}
@@ -156,7 +205,7 @@ func main() {
 		return 100 - (difference*100)/(float64(width)*float64(height)*255*255*4)
 	}
 
-	var best genetic.Phenotype
+	bus := newBus()
 
 	configuration := genetic.Configuration{
 		GeneLength:       int(circle),
@@ -170,7 +219,7 @@ func main() {
 		Iterations:       100000000,
 		Init:             init,
 		Evaluator:        eval,
-		Observer: 		  func(i int, e *genetic.Engine) { best = e.Best() },
+		Observer: 		  func(i int, e *genetic.Engine) { bus.push(e.Best()) },
 	}
 
 	engine := genetic.Engine{Configuration: configuration}
@@ -199,15 +248,16 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	http.HandleFunc("/best", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/next", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		var img image.Image
-		if (isStarted) {
-			img = Picture{best.Chromosome}.Draw(width, height, color.Black)
-		} else {
-			img = Picture{}.Draw(width, height, color.Gray16{})
+		p, err := bus.next()
+		if err != nil {
+			w.WriteHeader(http.StatusConflict)
+			return
 		}
+
+		img := Picture{p.Chromosome}.Draw(width, height, color.Black)
 
 		if err := png.Encode(w, img); err != nil {
 			fmt.Println(err)
