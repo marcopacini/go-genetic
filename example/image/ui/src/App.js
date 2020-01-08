@@ -1,5 +1,5 @@
 import React from 'react';
-import {Button, Card, Col, Container, Image, Row, Spinner} from 'react-bootstrap';
+import {Button, Card, Col, Container, Image, Row } from 'react-bootstrap';
 import './App.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -8,7 +8,7 @@ class Preview extends React.Component {
         super();
         this.state = {
             started: false,
-            src: "http://localhost:3001"
+            src: "http://localhost:3001/best"
         };
 
         this.handleStart= this.handleStart.bind(this);
@@ -28,15 +28,18 @@ class Preview extends React.Component {
     tick() {
         if (this.state.started) {
             this.setState({
-                src: "http://localhost:3001?date=" + new Date()
+                src: "http://localhost:3001/best?date=" + new Date()
             })
         }
     }
 
     handleStart() {
-        this.setState(state => ({
-            started: !state.started
-        }));
+        fetch("http://localhost:3001/start")
+            .then((response) => {
+                this.setState(state => ({
+                    started: !state.started
+                }));
+            })
     }
 
     render() {
