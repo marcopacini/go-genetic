@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/llgcode/draw2d/draw2dimg"
 	"github.com/llgcode/draw2d/draw2dkit"
@@ -14,8 +15,11 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
+	"runtime"
 	"sync"
+	"time"
 )
 
 type Shape int
@@ -125,35 +129,103 @@ func compareImage(img1 image.Image, img2 image.Image) float64 {
 	return result
 }
 
-type Bus struct {
-	queue []genetic.Phenotype
+type Evolution struct {
+	sample image.Image
+	running bool
+	mutex sync.Mutex
+	engine genetic.Engine
+	result genetic.Phenotype
 }
 
-func newBus() *Bus {
-	return &Bus{
-		queue: make([]genetic.Phenotype, 0),
-	}
-}
-
-func (b *Bus) push(p genetic.Phenotype) {
-	b.queue = append(b.queue, p)
-}
-
-func (b *Bus) isEmpty() bool {
-	return len(b.queue) == 0
-}
-
-func (b *Bus) next() (genetic.Phenotype, error) {
-	if b.isEmpty() {
-		return genetic.Phenotype{}, fmt.Errorf("bus is empty")
+func newEvolution(img image.Image) *Evolution {
+	ev := Evolution{
+		sample: img,
+		running: false,
+		engine: genetic.Engine{},
 	}
 
-	next := b.queue[0]
+	init := func(e *genetic.Engine) {
+		for i := range e.Population {
+			for j := range e.Population[i].Chromosome.Genes {
+				e.Population[i].Chromosome.Genes[j].Randomize()
+				e.Population[i].Chromosome.Genes[j].Sequence[0] = .3 // hide
+			}
+		}
 
-	if len(b.queue) != 1 {
-		b.queue = b.queue[1:]
+		for i := range e.Population {
+			j := rand.Intn(len(e.Population[i].Chromosome.Genes))
+			e.Population[i].Chromosome.Genes[j].Sequence[0] = .6
+		}
 	}
-	return next, nil
+
+	eval := func(c genetic.Chromosome) float64 {
+		difference := compareImage(Picture{Chromosome: c}.Draw(img.Bounds().Size().X, img.Bounds().Size().Y, color.Black), img)
+		return 100 - (difference*100)/(float64(img.Bounds().Size().X)*float64(img.Bounds().Size().Y)*255*255*4)
+	}
+
+	observer := func(i int, e *genetic.Engine) {
+		best := e.Best()
+
+		if best.Fitness > ev.result.Fitness {
+			ev.result = best
+		}
+	}
+
+	ev.engine.Configuration = genetic.Configuration{
+		GeneLength:       int(circle),
+		ChromosomeLength: 150,
+		PopulationSize:   75,
+		MaxAge:           5,
+		Selection:        genetic.TournamentSelection{Size: 10},
+		Crossover:        genetic.UniformCrossover{},
+		Mutation:         genetic.Gaussian{Probability: .001, Std: .1, Mean: 0.},
+		Elitism:          .1,
+		Iterations:       int(^uint(0) >> 1), // max int
+		Init:             init,
+		Evaluator:        eval,
+		Observer:         observer,
+	}
+
+	return &ev
+}
+
+func (ev *Evolution) start() error {
+	ev.mutex.Lock()
+	defer ev.mutex.Unlock()
+
+	if ev.running {
+		return fmt.Errorf("evolution already started")
+	}
+
+	go func() {
+		_, _ = ev.engine.Start()
+	}()
+	ev.running = true
+
+	return nil
+}
+
+func (ev *Evolution) stop() error {
+	ev.mutex.Lock()
+	defer ev.mutex.Unlock()
+
+	if !ev.running {
+		return fmt.Errorf("evolution not yet started")
+	}
+
+	ev.engine.Stop()
+	return nil
+}
+
+func (ev *Evolution) best() (*genetic.Phenotype, error) {
+	ev.mutex.Lock()
+	defer ev.mutex.Unlock()
+
+	if !ev.running {
+		return nil, fmt.Errorf("evolution not yet started")
+	}
+
+	return &ev.result, nil
 }
 
 type Sample string
@@ -178,93 +250,90 @@ func getSample(s Sample) (image.Image, error) {
 	return sample, nil
 }
 
+func openGUI() error {
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start"}
+	case "darwin":
+		cmd = "open"
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = "xdg-open"
+	}
+	args = append(args, "http://localhost:3000")
+	return exec.Command(cmd, args...).Start()
+}
+
 func main() {
 	sample, err := getSample(Small)
 	if err != nil {
 		panic(err)
 	}
 
-	width, height := sample.Bounds().Size().X, sample.Bounds().Size().Y
+	server := &http.Server{Addr: ":3001", Handler: nil}
+	evolution := newEvolution(sample)
 
-	init := func(e *genetic.Engine) {
-		for i := range e.Population {
-			for j := range e.Population[i].Chromosome.Genes {
-				e.Population[i].Chromosome.Genes[j].Randomize()
-				e.Population[i].Chromosome.Genes[j].Sequence[0] = .3 // hide circle
-			}
-		}
-
-		for i := range e.Population {
-			j := rand.Intn(len(e.Population[i].Chromosome.Genes))
-			e.Population[i].Chromosome.Genes[j].Sequence[0] = .6
-		}
+	if err := openGUI(); err != nil {
+		panic(err)
 	}
-
-	eval := func(chromosome genetic.Chromosome) float64 {
-		difference := compareImage(Picture{chromosome}.Draw(width, height, color.Black), sample)
-		return 100 - (difference*100)/(float64(width)*float64(height)*255*255*4)
-	}
-
-	bus := newBus()
-
-	configuration := genetic.Configuration{
-		GeneLength:       int(circle),
-		ChromosomeLength: 300,
-		PopulationSize:   100,
-		MaxAge:           5,
-		Selection:        genetic.TournamentSelection{10},
-		Crossover:        genetic.UniformCrossover{},
-		Mutation:         genetic.Gaussian{.001, .1, 0.},
-		Elitism:          .1,
-		Iterations:       100000000,
-		Init:             init,
-		Evaluator:        eval,
-		Observer: 		  func(i int, e *genetic.Engine) { bus.push(e.Best()) },
-	}
-
-	engine := genetic.Engine{Configuration: configuration}
-
-	isStarted := false
 
 	http.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		if (isStarted) {
+		if err := evolution.start(); err != nil {
 			w.WriteHeader(http.StatusConflict)
+			log.Println(err)
 			return
 		}
-
-		go func() {
-			_, _ = engine.Start()
-		}()
-		isStarted = true
 
 		w.WriteHeader(http.StatusOK)
 	})
 
 	http.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
-		engine.Stop()
 		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		if err := evolution.stop(); err != nil {
+			log.Println(err)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(ctx); err != nil {
+			fmt.Println(err)
+		}
+
 		w.WriteHeader(http.StatusOK)
 	})
 
-	http.HandleFunc("/next", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/best", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		p, err := bus.next()
+		p, err := evolution.best()
 		if err != nil {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
 
-		img := Picture{p.Chromosome}.Draw(width, height, color.Black)
+		img := Picture{Chromosome: p.Chromosome}.Draw(250, 250, color.Black)
 
 		if err := png.Encode(w, img); err != nil {
 			fmt.Println(err)
 		}
 	})
 
-	if err := http.ListenAndServe(":3001", nil); err != nil {
+
+	//http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+	//	if err := json.NewEncoder(w).Encode(stats); err != nil {
+	//		fmt.Println(err)
+	//	}
+	//})
+
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
