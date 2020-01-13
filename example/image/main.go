@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/llgcode/draw2d/draw2dimg"
 	"github.com/llgcode/draw2d/draw2dkit"
@@ -326,6 +327,19 @@ func main() {
 		}
 	})
 
+	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		stats := struct {
+			IsRunning bool `json:"isRunning"`
+		} {
+			IsRunning: evolution.running,
+		}
+
+		if err := json.NewEncoder(w).Encode(stats); err != nil {
+			fmt.Println(err)
+		}
+	})
 
 	//http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
 	//	if err := json.NewEncoder(w).Encode(stats); err != nil {
